@@ -54,29 +54,11 @@ void mark_as_read(int *newmsg) {
 	}
 }
 
-void blink(void) {
-	int i;
-	
-	usleep(200000);
-	
-	for(i = 0; i < 15; i++) {
-		bkgd(COLOR_PAIR(2));
-		refresh();
-		
-		usleep(100000);
-		
-		bkgd(COLOR_PAIR(1));
-		refresh();
-		
-		usleep(100000);
-	}
-}
-
 int main(void) {
 	int i;
 	char buffer[1024];
 	FILE *fp;
-	pthread_t waitkey, blinkwin;
+	pthread_t waitkey;
 	char newmsg;
 	
 	/* Init curses */
@@ -96,6 +78,7 @@ int main(void) {
 	/* Init Colors */
 	init_pair(1, COLOR_WHITE, COLOR_BLUE);
 	init_pair(2, COLOR_WHITE, COLOR_BLACK);
+	init_pair(3, COLOR_YELLOW, COLOR_BLUE);
 	
 	attron(COLOR_PAIR(2));
 	bkgd(COLOR_PAIR(2));
@@ -131,10 +114,17 @@ int main(void) {
 		/* Waiting News */
 		while(fgets(buffer, sizeof(buffer), fp) != NULL) {
 			if(!newmsg) {
-				if(pthread_create(&blinkwin, NULL, (void *) blink, (void*) NULL) != 0) {
-					return 1;
-				}
+				/* Background blue */
+				bkgd(COLOR_PAIR(1));
+				refresh();
+				
+				/* Beep */			
+				printf("\x07");
 			}
+			
+			/* New Message */
+			attron(COLOR_PAIR(3));
+			attron(A_BOLD);
 				
 			trim_text(buffer);
 			print_line(buffer);
