@@ -29,7 +29,10 @@ void trim_text(char *data) {
 
 void dummy(int signal) {
 	switch(signal) {
-		// Nothing yet
+		case SIGWINCH:
+			endwin();
+			refresh();
+		break;
 	}
 }
 
