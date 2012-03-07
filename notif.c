@@ -33,11 +33,17 @@ void dummy(int signal) {
 			endwin();
 			refresh();
 		break;
+		
+		case SIGINT:
+			endwin();
+			exit(1);
+		break;
 	}
 }
 
-void mark_as_read(int *newmsg) {
+void * mark_as_read(void *nmsg) {
 	int i;
+	int *newmsg = nmsg;
 
 	while(1) {
 		getchar();
@@ -79,6 +85,7 @@ int main(int argc, char *argv[]) {
 	cbreak();		/* No break line */
 	noecho();		/* No echo key */
 	start_color();		/* Enable color */
+	use_default_colors();
 	curs_set(0);		/* Disable cursor */
 	keypad(stdscr, TRUE);
 
@@ -92,6 +99,7 @@ int main(int argc, char *argv[]) {
 	init_pair(1, COLOR_WHITE, COLOR_BLUE);
 	init_pair(2, COLOR_WHITE, COLOR_BLACK);
 	init_pair(3, COLOR_YELLOW, COLOR_BLUE);
+	init_color(COLOR_BLACK, 0, 0, 0);
 
 	attron(COLOR_PAIR(2));
 	bkgd(COLOR_PAIR(2));
@@ -113,7 +121,7 @@ int main(int argc, char *argv[]) {
 	/* Init Message Count */
 	newmsg = 0;
 
-	if(pthread_create(&waitkey, NULL, (void *) mark_as_read, (void*) &newmsg) != 0)
+	if(pthread_create(&waitkey, NULL, mark_as_read, (void*) &newmsg) != 0)
 		return 1;
 
 	while(1) {
