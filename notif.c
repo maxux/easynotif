@@ -7,6 +7,8 @@
 #include <unistd.h>
 #include <time.h>
 
+#define LAST_BEEP_DELAY		20	/* Seconds */
+
 void print_line(char *data) {
 	time_t rawtime;
 	struct tm * timeinfo;
@@ -72,6 +74,7 @@ int main(int argc, char *argv[]) {
 	FILE *fp;
 	pthread_t waitkey;
 	char newmsg;
+	time_t last_beep = 0;
 
 	if(argc < 2)
 		usage(argv[0]);
@@ -142,6 +145,11 @@ int main(int argc, char *argv[]) {
 
 				/* Beep */
 				printf("\x07");
+				time(&last_beep);
+				
+			} else if(last_beep + LAST_BEEP_DELAY < time(NULL)) {
+				printf("\x07");
+				time(&last_beep);
 			}
 
 			/* New Message */
