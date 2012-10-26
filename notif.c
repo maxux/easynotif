@@ -2,12 +2,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include <ncurses.h>
+#include <locale.h>
 #include <pthread.h>
 #include <signal.h>
 #include <unistd.h>
 #include <time.h>
+#include <errno.h>
 
-#define LAST_BEEP_DELAY		20	/* Seconds */
+#define LAST_BEEP_DELAY		20	/* seconds */
+
+void diep(char *str) {
+	endwin();
+	perror(str);
+	exit(EXIT_FAILURE);
+}
 
 void print_line(char *data) {
 	time_t rawtime;
@@ -48,14 +56,17 @@ void * mark_as_read(void *nmsg) {
 	int *newmsg = nmsg;
 
 	while(1) {
+		/* Waiting key */
 		getchar();
 
+		/* Print the line */
 		i = getmaxx(stdscr);
 		while(i-- > 1)
-			printw("-");
+			printw("─");
 
 		printw("\n");
 
+		/* Changing colors */
 		bkgd(COLOR_PAIR(2));
 		refresh();
 
@@ -78,12 +89,15 @@ int main(int argc, char *argv[]) {
 
 	if(argc < 2)
 		usage(argv[0]);
+		
 	if(!strcmp(argv[1], "-h"))
 		usage(argv[0]);
 
 	notiffile = argv[1];
 
 	/* Init curses */
+	setlocale(LC_CTYPE, "");
+	
 	initscr();		/* Init ncurses */
 	cbreak();		/* No break line */
 	noecho();		/* No echo key */
@@ -95,7 +109,7 @@ int main(int argc, char *argv[]) {
 	/* Init Scroll */
 	scrollok(stdscr, 1);
 
-	/* Skipping Resize Signal */
+	/* Skipping Resize signal */
 	signal(SIGWINCH, dummy);
 
 	/* Init Colors */
@@ -129,15 +143,16 @@ int main(int argc, char *argv[]) {
 
 	while(1) {
 		/* Init Files */
-		fp = fopen(notiffile, "r");
-		if(!fp) {
-			endwin();
-			perror("fopen");
-			return 1;
+		if(!(fp = fopen(notiffile, "r"))) {
+			if(errno == EINTR)
+				continue;
+				
+			diep("fopen");
 		}
+		
 
 		/* Waiting News */
-		while(fgets(buffer, sizeof(buffer), fp) != NULL) {
+		while(fgets(buffer, sizeof(buffer), fp)) {
 			if(!newmsg) {
 				/* Background blue */
 				bkgd(COLOR_PAIR(1));
