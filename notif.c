@@ -114,7 +114,7 @@ int main(int argc, char *argv[]) {
 
 	/* Init Colors */
 	init_pair(1, COLOR_WHITE, COLOR_BLUE);
-	init_pair(2, COLOR_WHITE, COLOR_BLACK);
+	init_pair(2, COLOR_WHITE, -1);
 	init_pair(3, COLOR_YELLOW, COLOR_BLUE);
 	init_color(COLOR_BLACK, 0, 0, 0);
 
