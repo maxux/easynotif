@@ -11,24 +11,60 @@
 
 #define LAST_BEEP_DELAY		20	/* seconds */
 
+pthread_t waitkey;
+short newmessage = 0;
+
 void diep(char *str) {
 	endwin();
 	perror(str);
 	exit(EXIT_FAILURE);
 }
 
-void print_line(char *data) {
+void split() {
+	int i = getmaxx(stdscr);
+	
+	while(i-- > 1)
+		printw("─");
+	
+	printw("\n");
+}
+
+void *reset(void *dummy) {
+	while(1) {
+		// waiting user input
+		getchar();
+		split();
+
+		// reset black color
+		bkgd(COLOR_PAIR(2));
+		refresh();
+
+		newmessage = 0;
+	}
+	
+	return dummy;
+}
+
+void notificate(char *data) {
 	time_t rawtime;
-	struct tm * timeinfo;
+	struct tm *timeinfo;
 
 	time(&rawtime);
 	timeinfo = localtime(&rawtime);
+	
+	attron(COLOR_PAIR(3));
+	attron(A_BOLD);
 
 	printw("[%02d:%02d:%02d] %s\n", timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec, data);
 	refresh();
+	
+	attron(COLOR_PAIR(1));
+	attroff(A_BOLD);
+	
+	newmessage++;
 }
 
-void trim_text(char *data) {
+void trim(char *data) {
 	int len;
 
 	len = strlen(data);
@@ -37,7 +73,7 @@ void trim_text(char *data) {
 		data[len - 1] = '\0';
 }
 
-void dummy(int signal) {
+void sighandler(int signal) {
 	switch(signal) {
 		case SIGWINCH:
 			endwin();
@@ -51,29 +87,6 @@ void dummy(int signal) {
 	}
 }
 
-void * mark_as_read(void *nmsg) {
-	int i;
-	int *newmsg = nmsg;
-
-	while(1) {
-		/* Waiting key */
-		getchar();
-
-		/* Print the line */
-		i = getmaxx(stdscr);
-		while(i-- > 1)
-			printw("─");
-
-		printw("\n");
-
-		/* Changing colors */
-		bkgd(COLOR_PAIR(2));
-		refresh();
-
-		*newmsg = 0;
-	}
-}
-
 void usage(char *argv0) {
 	fprintf(stderr, "usage: %s [-h] file\n", argv0);
 	exit(1);
@@ -83,8 +96,6 @@ int main(int argc, char *argv[]) {
 	int i;
 	char buffer[1024], *notiffile;
 	FILE *fp;
-	pthread_t waitkey;
-	char newmsg;
 	time_t last_beep = 0;
 
 	if(argc < 2)
@@ -95,86 +106,73 @@ int main(int argc, char *argv[]) {
 
 	notiffile = argv[1];
 
-	/* Init curses */
 	setlocale(LC_CTYPE, "");
 	
-	initscr();		/* Init ncurses */
-	cbreak();		/* No break line */
-	noecho();		/* No echo key */
-	start_color();		/* Enable color */
+	initscr();              // init ncurses
+	cbreak();               // no break line
+	noecho();               // no echo key
+	start_color();          // enable color
 	use_default_colors();
-	curs_set(0);		/* Disable cursor */
-	keypad(stdscr, TRUE);
-
-	/* Init Scroll */
+	curs_set(0);            // disable cursor
+	
+	keypad(stdscr, TRUE);   // use scroll
 	scrollok(stdscr, 1);
 
-	/* Skipping Resize signal */
-	signal(SIGWINCH, dummy);
+	/* handling CTRL+C and console resize */
+	signal(SIGWINCH, sighandler);
+	signal(SIGINT, sighandler);
 
-	/* Init Colors */
 	init_pair(1, COLOR_WHITE, COLOR_BLUE);
 	init_pair(2, COLOR_WHITE, -1);
 	init_pair(3, COLOR_YELLOW, COLOR_BLUE);
-	init_color(COLOR_BLACK, 0, 0, 0);
 
-	attron(COLOR_PAIR(2));
-	bkgd(COLOR_PAIR(2));
-
-	/* State Message */
+	/* scrolling to the bottom */
 	for(i = 0; i < getmaxy(stdscr); i++)
 		printw("\n");
 
-	/* Starting with 'no news messages' */
+	/* starting message */
+	bkgd(COLOR_PAIR(2));
 	attron(COLOR_PAIR(2));
 	attron(A_BOLD);
-	print_line("Waiting for notifications...");
+	
+	printw("Waiting for notifications...\n");
+	split();
+	
 	attroff(A_BOLD);
-
-	/* Waiting new messages */
 	attron(COLOR_PAIR(1));
+	
 	refresh();
 
-	/* Init Message Count */
-	newmsg = 0;
+	// starting user input thread
+	if(pthread_create(&waitkey, NULL, reset, NULL) != 0)
+		diep("[-] pthread");
 
-	if(pthread_create(&waitkey, NULL, mark_as_read, (void*) &newmsg) != 0)
-		return 1;
-
+	/* Waiting new messages */
 	while(1) {
-		/* Init Files */
 		if(!(fp = fopen(notiffile, "r"))) {
 			if(errno == EINTR)
 				continue;
 				
-			diep("fopen");
+			diep("[-] fopen");
 		}
 		
 
 		/* Waiting News */
 		while(fgets(buffer, sizeof(buffer), fp)) {
-			if(!newmsg) {
-				/* Background blue */
+			if(!newmessage) {
+				/* background blue */
 				bkgd(COLOR_PAIR(1));
 				refresh();
-
-				/* Beep */
-				printf("\x07");
-				time(&last_beep);
-				
-			} else if(last_beep + LAST_BEEP_DELAY < time(NULL)) {
+			}
+			
+			// checking last time beep
+			if(last_beep + LAST_BEEP_DELAY < time(NULL)) {
 				printf("\x07");
 				time(&last_beep);
 			}
 
-			/* New Message */
-			attron(COLOR_PAIR(3));
-			attron(A_BOLD);
-
-			trim_text(buffer);
-			print_line(buffer);
-
-			newmsg++;
+			trim(buffer);
+			notificate(buffer);
 		}
 
 		fclose(fp);
