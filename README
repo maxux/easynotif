@@ -1,0 +1,18 @@
+A simple notifications console to keep track of your notifications with last-read
+notification.
+
+To use it, just compile the code:
+$ make
+
+Make a fifo somewhere:
+$ mkfifo /tmp/notifications
+
+Start the easynotif with fifo as argument:
+$ ./easynotif /tmp/notifications
+
+Try it:
+$ echo "Hello World" > /tmp/notifications
+
+Enjoy.
+
+You can use this code on a screen/tmux and get your notifications everywhere !
